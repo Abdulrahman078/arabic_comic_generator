@@ -1,0 +1,20 @@
+[project]
+name = "arabic-comic-generator"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai",
+    "google-genai",
+    "pillow",
+    "arabic-reshaper",
+    "python-bidi",
+    "requests",
+    "python-dotenv",
+    "ultralytics>=8.0.0",
+    "huggingface-hub>=0.20.0",
+]
+
+[project.scripts]
+comic_pipeline = "src.pipeline.__main__:main"
