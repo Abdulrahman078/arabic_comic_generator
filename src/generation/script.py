@@ -1,10 +1,8 @@
-"""Script generation: turns user prompt into structured 3-panel ComicScript via Gemini."""
+"""Script generation: turns user prompt into structured 3-panel ComicScript via OpenAI."""
 import json
 from typing import Any, Dict
 
-from google.genai import types
-
-from src.utils.clients import load_gemini_client
+from src.utils.clients import load_openai_client
 from src.utils.config import LLM_MODEL
 from src.utils.logger import step
 from src.utils.cache import get_cached_script, set_cached_script
@@ -26,18 +24,8 @@ def _sanitize_script(obj: Any) -> Any:
     return obj
 
 
-def _response_text(response: Any) -> str:
-    """Extract plain text from Gemini generate_content response."""
-    if getattr(response, "text", None):
-        return response.text.strip()
-    if response.candidates and response.candidates[0].content.parts:
-        parts = response.candidates[0].content.parts
-        return "".join(getattr(p, "text", "") for p in parts).strip()
-    return ""
-
-
 def generate_comic_script(user_prompt_ar: str, max_retries: int = 2) -> Dict[str, Any]:
-    """Generates a structured 3-panel ComicScript JSON using Gemini."""
+    """Generates a structured 3-panel ComicScript JSON using OpenAI."""
     user_prompt_ar = _sanitize_llm_output(user_prompt_ar)
 
     cached = get_cached_script(user_prompt_ar)
@@ -70,32 +58,26 @@ def generate_comic_script(user_prompt_ar: str, max_retries: int = 2) -> Dict[str
         "Generate the ComicScript JSON now."
     )
 
-    full_prompt = system + "\n\n" + user
-
-    step("Loading Gemini client...")
-    client = load_gemini_client()
+    step("Loading OpenAI client...")
+    client = load_openai_client()
     last_err = None
     for attempt in range(max_retries):
         try:
             step(f"Requesting script from LLM (attempt {attempt + 1})...")
-            response = client.models.generate_content(
+            resp = client.chat.completions.create(
                 model=LLM_MODEL,
-                contents=full_prompt,
-                config=types.GenerateContentConfig(temperature=0),
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0,
             )
 
-            txt = _response_text(response)
+            txt = resp.choices[0].message.content
             if not txt:
-                raise ValueError("Empty response from Gemini")
+                raise ValueError("Empty response from OpenAI")
+            txt = txt.strip()
             txt = _sanitize_llm_output(txt)
-            # Strip markdown code fences if model adds them despite instructions
-            if txt.startswith("```"):
-                lines = txt.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                txt = "\n".join(lines).strip()
 
             script = json.loads(txt)
             script = _sanitize_script(script)
@@ -113,12 +95,11 @@ def generate_comic_script(user_prompt_ar: str, max_retries: int = 2) -> Dict[str
 
         except Exception as e:
             last_err = e
-            full_prompt = (
-                system
-                + "\n\nYour previous output was invalid JSON or wrong schema.\n"
-                + "Return ONLY valid JSON with exactly 3 panels and the exact keys.\n"
-                + "No markdown.\n\n"
-                + f"Story prompt (Arabic): {user_prompt_ar}"
+            user = (
+                "Your previous output was invalid JSON or wrong schema.\n"
+                "Return ONLY valid JSON with exactly 3 panels and the exact keys.\n"
+                "No markdown.\n\n"
+                f"Story prompt (Arabic): {user_prompt_ar}"
             )
 
     err_msg = _sanitize_llm_output(str(last_err))

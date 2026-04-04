@@ -1,25 +1,26 @@
-"""Central configuration: API keys, model names, paths."""
+"""Central configuration: API keys from environment; everything else is fixed here."""
 
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# API keys (Gemini only)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# Only secrets from the environment
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Gemini text model (ComicScript JSON)
-LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+# OpenAI: ComicScript JSON (text)
+LLM_MODEL = "gpt-5.4-nano-2026-03-17"
 
-# Gemini image model (panel art)
+# Gemini: panel images only
 GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview"
 
 # YOLO bubble detection: lower = more detections (may include false positives)
 YOLO_CONF_PRIMARY = 0.15
 YOLO_CONF_FALLBACK = 0.06
 
-# Font: amiri (default), cairo, noto_naskh
-FONT_PREFERENCE = os.getenv("FONT_PREFERENCE", "amiri").lower()
+# Font: amiri | cairo | noto_naskh
+FONT_PREFERENCE = "amiri"
 FONTS = {
     "amiri": (
         "https://github.com/google/fonts/raw/main/ofl/amiri/Amiri-Regular.ttf",
@@ -36,11 +37,8 @@ FONTS = {
 }
 FONT_URL, FONT_PATH = FONTS.get(FONT_PREFERENCE, FONTS["amiri"])
 
-# Style lock: fixed suffix for consistent panel look (overridable via env)
-STYLE_LOCK = os.getenv(
-    "STYLE_LOCK",
-    "black and white manga, screentone, high contrast, clean ink lines",
+STYLE_LOCK = (
+    "black and white manga, screentone, high contrast, clean ink lines"
 )
 
-# Cache: 1/true/yes to reuse generated scripts for identical prompts
-ENABLE_CACHE = os.getenv("ENABLE_CACHE", "1").lower() in ("1", "true", "yes")
+ENABLE_CACHE = True
