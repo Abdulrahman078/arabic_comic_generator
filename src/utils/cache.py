@@ -1,9 +1,10 @@
 """In-memory cache for script, style, and character sheet to reduce LLM cost."""
+
 import hashlib
-import os
 from typing import Any, Dict, Optional
 
-_ENABLE_CACHE = os.getenv("ENABLE_CACHE", "1").lower() in ("1", "true", "yes")
+from src.utils.config import ENABLE_CACHE
+
 _cache: Dict[str, Dict[str, Any]] = {}
 _CACHE_MAX_ENTRIES = 50
 
@@ -16,7 +17,7 @@ def _make_key(prompt: str, suffix: str = "") -> str:
 
 def get_cached_script(prompt: str) -> Optional[Dict[str, Any]]:
     """Returns cached full script if available (same prompt)."""
-    if not _ENABLE_CACHE:
+    if not ENABLE_CACHE:
         return None
     key = _make_key(prompt, "script")
     entry = _cache.get(key)
@@ -25,7 +26,7 @@ def get_cached_script(prompt: str) -> Optional[Dict[str, Any]]:
 
 def set_cached_script(prompt: str, script: Dict[str, Any]) -> None:
     """Stores script for reuse when same prompt is used again."""
-    if not _ENABLE_CACHE:
+    if not ENABLE_CACHE:
         return
     if len(_cache) >= _CACHE_MAX_ENTRIES:
         first = next(iter(_cache))

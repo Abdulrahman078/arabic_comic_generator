@@ -1,29 +1,11 @@
-"""Renders dialogue bubbles and Arabic text onto panel images. Draws bubbles ourselves — no YOLO."""
+"""Renders Arabic text into YOLO-detected speech bubbles on panel images."""
 from PIL import Image, ImageDraw, ImageFont
 from typing import List, Tuple, Dict, Any
 
+from src.utils.schemas import Bubble
 from src.utils.logger import step
 from src.panel.text_bubble.text import fit_text_in_box
-from src.panel.text_bubble.bubble_placer import compute_bubble_positions
-
-
-def _draw_rounded_rect(
-    draw: ImageDraw.ImageDraw,
-    bbox: Tuple[int, int, int, int],
-    outline: str = "black",
-    fill: str = "white",
-    width: int = 2,
-    radius: int = 12,
-) -> None:
-    """Draws a rounded rectangle (speech bubble shape)."""
-    x1, y1, x2, y2 = bbox
-    draw.rounded_rectangle(
-        [x1, y1, x2, y2],
-        radius=radius,
-        outline=outline,
-        fill=fill,
-        width=width,
-    )
+from src.panel.text_bubble.bubble_detector import detect_bubbles_in_panel
 
 
 def _draw_text_centered(
@@ -62,25 +44,33 @@ def render_panel_with_bubbles(
     font_path: str,
 ) -> Image.Image:
     """
-    Draws bubbles at fixed positions and overlays Arabic text.
-    No YOLO — full control over placement and rendering.
+    Uses YOLO to detect speech bubbles, then overlays Arabic text into each region.
+    If no bubbles are detected, the panel is returned unchanged.
     """
     img = panel_img.copy()
-    if not dialogue:
+    draw = ImageDraw.Draw(img)
+
+    step("Detecting bubbles with YOLO...")
+    detected_bboxes = detect_bubbles_in_panel(img)
+
+    if len(detected_bboxes) == 0 or len(dialogue) == 0:
+        if len(detected_bboxes) == 0 and len(dialogue) > 0:
+            step("No bubbles detected — leaving panel unchanged (no manual overlays)")
         return img
 
-    w, h = img.size
-    bboxes = compute_bubble_positions(w, h, len(dialogue))
-    step(f"Drawing {len(bboxes)} bubbles at fixed positions")
-
-    draw = ImageDraw.Draw(img)
-    num_to_fill = min(len(bboxes), len(dialogue))
+    num_to_fill = min(len(detected_bboxes), len(dialogue))
+    step(f"Using {num_to_fill} YOLO-detected bubbles")
 
     for i in range(num_to_fill):
         d = dialogue[i]
-        bbox = bboxes[i]
-        _draw_rounded_rect(draw, bbox)
-        font, lines = fit_text_in_box(draw, d["text_ar"], bbox, font_path)
-        _draw_text_centered(draw, bbox, lines, font)
+        bbox = detected_bboxes[i]
+        b = Bubble(
+            bbox=bbox,
+            bubble_type=d["bubble_type"],
+            speaker=d["speaker"],
+            text_ar=d["text_ar"],
+        )
+        font, lines = fit_text_in_box(draw, b.text_ar, b.bbox, font_path)
+        _draw_text_centered(draw, b.bbox, lines, font)
 
     return img

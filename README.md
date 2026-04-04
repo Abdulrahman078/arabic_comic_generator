@@ -1,6 +1,6 @@
 # Arabic AI Comic Generator
 
-Generates 3-panel Arabic comics from story prompts using OpenAI (script) and Gemini (images).
+Generates 3-panel Arabic comics from story prompts using **Google Gemini** (script JSON + panel images).
 
 ## Setup
 
@@ -11,14 +11,10 @@ uv sync
 
 # Copy env
 cp .env.example .env
-# Add OPENAI_API_KEY, GEMINI_API_KEY (or GOOGLE_API_KEY)
+# Add GEMINI_API_KEY
 ```
 
-**Optional env vars:**
-- `LLM_MODEL` — Script model (default: gpt-4o-mini)
-- `FONT_PREFERENCE` — amiri | cairo | noto_naskh
-- `STYLE_LOCK` — Fixed style suffix for panels
-- `ENABLE_CACHE` — 1/0 to cache scripts (default: 1)
+Editable defaults live in `src/utils/config.py`. Optional: `LLM_MODEL` (default `gemini-2.0-flash` for the ComicScript JSON).
 
 The UI uses plain `python` (or `.venv/Scripts/python.exe` on Windows if present) — no `uv run` needed.
 

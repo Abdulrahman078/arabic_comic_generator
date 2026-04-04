@@ -6,3 +6,6 @@ logs
 .vscode
 node_modules
 package-lock.json
+AGENTS.md
+Amiri-Regular.ttf
+.ruff_cache

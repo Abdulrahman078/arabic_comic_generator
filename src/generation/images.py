@@ -1,14 +1,13 @@
-"""Panel image generation: creates art for each panel via AI image API (Gemini by default, OpenAI optional)."""
-import base64
+"""Panel image generation: creates art for each panel via Gemini image API."""
 import hashlib
 import io
 import time
 from PIL import Image
 from typing import Dict, Any, List
 
-from src.utils.clients import load_gemini_client, load_openai_client
+from src.utils.clients import load_gemini_client
 from src.utils.logger import step
-from src.utils.config import GEMINI_IMAGE_MODEL, OPENAI_IMAGE_MODEL
+from src.utils.config import GEMINI_IMAGE_MODEL
 from src.generation.context import build_shared_context
 from google.genai import types
 
@@ -32,25 +31,39 @@ def _panel_seed(shared_context: str, panel_id: int) -> int:
     return int(h[:8], 16) % (2**31)
 
 
-_NO_BUBBLES_PROMPT = (
-    "Do NOT draw any speech bubbles. No text, no letters, no subtitles, no captions anywhere."
-)
+def _build_bubble_prompt(num_bubbles: int) -> str:
+    """Instructs Gemini to draw empty speech bubbles so YOLO can detect regions for Arabic text."""
+    if num_bubbles <= 0:
+        return (
+            "Do NOT draw any speech bubbles. If any bubbles appear, they must be completely empty."
+        )
+    return (
+        f"CRITICAL: Draw exactly {num_bubbles} empty speech bubble(s) for this panel. "
+        "Each bubble must correspond to a dialogue line—but do NOT put any text, letters, or words inside the bubbles. "
+        "The bubbles must be completely empty: white fill, black outline, rounded rectangle shape. "
+        "Place each bubble near the character who will speak. "
+        "We will detect these bubbles and fill them with text later—they must be clearly visible and empty."
+    )
 
 
 def generate_panel_image(
     panel_prompt: str,
     shared_context: str = "",
     panel_id: int = 1,
+    num_bubbles: int = 0,
     aspect_ratio: str = "1:1",
     image_size: str = "1K",
 ) -> Image.Image:
-    """Generates a single panel image using Gemini API. No bubbles — we draw them ourselves."""
+    """Generates a single panel image using Gemini. Empty bubbles for YOLO + Arabic overlay."""
 
     full_prompt_parts = []
     if shared_context.strip():
         full_prompt_parts.append(shared_context.strip())
     full_prompt_parts.append(panel_prompt.strip())
-    full_prompt_parts.append(_NO_BUBBLES_PROMPT)
+    full_prompt_parts.append(
+        "IMPORTANT: No written text, no letters, no subtitles anywhere in the image."
+    )
+    full_prompt_parts.append(_build_bubble_prompt(num_bubbles))
 
     prompt = "\n\n".join(full_prompt_parts)
 
@@ -106,34 +119,8 @@ def generate_panel_image(
     raise RuntimeError(f"Gemini image generation failed after {_IMAGE_RETRIES} attempts: {last_err}")
 
 
-def generate_panel_image_openai(
-    panel_prompt: str,
-    shared_context: str = "",
-    size: str = "1024x1024",
-) -> Image.Image:
-    """Generates a single panel image using OpenAI Image API (alternative to Gemini)."""
-    full_prompt_parts = []
-    if shared_context.strip():
-        full_prompt_parts.append(shared_context.strip())
-    full_prompt_parts.append(panel_prompt.strip())
-    base = "\n\n---\n\n".join(full_prompt_parts)
-    safe_prompt = base + "\n\n" + _NO_BUBBLES_PROMPT
-
-    client = load_openai_client()
-    img_resp = client.images.generate(model=OPENAI_IMAGE_MODEL, prompt=safe_prompt, size=size)
-
-    if img_resp.data[0].b64_json:
-        raw = base64.b64decode(img_resp.data[0].b64_json)
-        return Image.open(io.BytesIO(raw)).convert("RGB")
-    import requests
-
-    resp = requests.get(img_resp.data[0].url)
-    resp.raise_for_status()
-    return Image.open(io.BytesIO(resp.content)).convert("RGB")
-
-
 def generate_all_panels(script: Dict[str, Any]) -> List[Image.Image]:
-    """Generates all 3 panel images from the script using Gemini. No bubbles in image — we draw them ourselves."""
+    """Generates all 3 panel images via Gemini. Empty bubbles for YOLO; text overlay in renderer."""
     shared_context = build_shared_context(script)
     panels = []
     for p in script["panels"]:
@@ -149,10 +136,12 @@ def generate_all_panels(script: Dict[str, Any]) -> List[Image.Image]:
                 extras.append(f"Camera: {p['camera']}")
             if extras:
                 panel_prompt = f"{' | '.join(extras)}. {panel_prompt}"
+        num_bubbles = len(p.get("dialogue", []))
         img = generate_panel_image(
             panel_prompt,
             shared_context=shared_context,
             panel_id=panel_id,
+            num_bubbles=num_bubbles,
         )
         elapsed = time.perf_counter() - t0
         step(f"Panel {panel_id} — image FINISHED in {elapsed:.1f}s")

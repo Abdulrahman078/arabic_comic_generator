@@ -1,18 +1,17 @@
 """Central configuration: API keys, model names, paths."""
+
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# API keys
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# API keys (Gemini only)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
-# OpenAI (script generation + optional image generation)
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
-OPENAI_IMAGE_MODEL = "gpt-image-1"
+# Gemini text model (ComicScript JSON)
+LLM_MODEL = os.getenv("LLM_MODEL", "gemini-2.0-flash")
 
-# Gemini (panel image generation)
+# Gemini image model (panel art)
 GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview"
 
 # YOLO bubble detection: lower = more detections (may include false positives)
@@ -42,3 +41,6 @@ STYLE_LOCK = os.getenv(
     "STYLE_LOCK",
     "black and white manga, screentone, high contrast, clean ink lines",
 )
+
+# Cache: 1/true/yes to reuse generated scripts for identical prompts
+ENABLE_CACHE = os.getenv("ENABLE_CACHE", "1").lower() in ("1", "true", "yes")
