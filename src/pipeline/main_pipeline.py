@@ -15,10 +15,8 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 from src.utils.logger import step
-from src.panel.text_bubble.text import download_font, get_font_path
 from src.generation import generate_comic_script, generate_all_panels
-from src.panel.layout.page import build_three_panel_layout, assemble_page
-from src.panel.text_bubble.bubble_renderer import render_panel_with_bubbles
+from src.panel.layout.page import build_one_panel_layout, assemble_page
 
 PAGE_W = 1024
 PAGE_H = 1536
@@ -35,31 +33,24 @@ def run_pipeline(user_prompt: str, save_to_disk: bool = False) -> dict:
     Returns:
         dict with keys: script, raw_panels, final_panels, page
     """
-    step("Pipeline started — prompt received")
-    step("Checking foundation (font)...")
-    download_font()
+    step("Pipeline started - prompt received")
 
-    step("Script generation — STARTED")
+    step("Script generation - STARTED")
     t0 = time.perf_counter()
     script = generate_comic_script(user_prompt)
-    step(f"Script generation — FINISHED in {time.perf_counter() - t0:.1f}s")
+    step(f"Script generation - FINISHED in {time.perf_counter() - t0:.1f}s")
     step("Building layout...")
-    layout = build_three_panel_layout(page_w=PAGE_W, page_h=PAGE_H)
+    layout = build_one_panel_layout(page_w=PAGE_W, page_h=PAGE_H)
 
     step("Generating panel images via Gemini...")
     raw_panels = generate_all_panels(script)
-    step("Panel images generated — adding dialogue bubbles...")
+    step("Panel images ready (art only; dialogue is in script as captions).")
 
-    final_panels = []
-    for i, p in enumerate(script["panels"]):
-        step(f"Panel {i + 1} — bubble rendering STARTED")
-        t0 = time.perf_counter()
-        final_panels.append(render_panel_with_bubbles(raw_panels[i], p["dialogue"], get_font_path()))
-        step(f"Panel {i + 1} — bubble rendering FINISHED in {time.perf_counter() - t0:.1f}s")
+    final_panels = list(raw_panels)
 
     step("Assembling final page...")
     page = assemble_page(final_panels, layout)
-    step("Pipeline complete — comic ready")
+    step("Pipeline complete - comic ready")
 
     if save_to_disk:
         page.save("comic_page.png")

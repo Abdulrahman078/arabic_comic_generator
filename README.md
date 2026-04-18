@@ -41,5 +41,5 @@ uv run comic_pipeline
 - `src/` — All Python logic
   - `src/pipeline/main_pipeline.py` — Pipeline orchestration
   - `src/generation/` — Script + images
-  - `src/panel/` — Bubbles, layout
+  - `src/panel/` — Page layout and assembly
   - `src/utils/` — Config, logger, clients

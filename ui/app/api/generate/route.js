@@ -1,6 +1,10 @@
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
+import { PIPELINE_TIMEOUT_MS } from "../../../lib/timeouts.js";
+
+/** Next.js / Vercel route max duration (seconds). Align with PIPELINE_TIMEOUT_MS when deploying. */
+export const maxDuration = 1200;
 
 function getPythonPath(projectRoot) {
   const isWin = process.platform === "win32";
@@ -31,6 +35,7 @@ export async function POST(request) {
         ...process.env,
         COMIC_PROMPT_B64: Buffer.from(prompt, "utf-8").toString("base64"),
         PYTHONUNBUFFERED: "1",
+        PYTHONIOENCODING: "utf-8",
       },
     });
 
@@ -41,15 +46,61 @@ export async function POST(request) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
+        let finished = false;
+
+        function safeEnqueue(bytes) {
+          if (finished) return;
+          try {
+            controller.enqueue(bytes);
+          } catch {
+            finished = true;
+          }
+        }
+
         function emitLog(line) {
+          if (finished) return;
           const trimmed = line.trim();
           if (trimmed) {
-            controller.enqueue(encoder.encode(JSON.stringify({ t: "log", m: trimmed }) + "\n"));
+            safeEnqueue(
+              encoder.encode(
+                JSON.stringify({ t: "log", m: trimmed }) + "\n"
+              )
+            );
+          }
+        }
+
+        function detachStdio() {
+          try {
+            proc.stderr?.removeAllListeners("data");
+            proc.stdout?.removeAllListeners("data");
+          } catch {
+            /* ignore */
+          }
+        }
+
+        function sendDone(payload) {
+          if (finished) return;
+          detachStdio();
+          finished = true;
+          try {
+            controller.enqueue(
+              encoder.encode(
+                JSON.stringify({ t: "done", ...payload }) + "\n"
+              )
+            );
+          } catch {
+            /* stream may already be closing */
+          }
+          try {
+            controller.close();
+          } catch {
+            /* ignore */
           }
         }
 
         proc.stdout.on("data", (chunk) => stdout.push(chunk));
         proc.stderr.on("data", (chunk) => {
+          if (finished) return;
           stderr.push(chunk);
           stderrBuffer += chunk.toString("utf-8");
           const lines = stderrBuffer.split("\n");
@@ -57,13 +108,13 @@ export async function POST(request) {
           lines.forEach(emitLog);
         });
 
-        const TIMEOUT_MS = 5 * 60 * 1000;
         const timeoutId = setTimeout(() => {
           if (!proc.killed) proc.kill("SIGTERM");
-        }, TIMEOUT_MS);
+        }, PIPELINE_TIMEOUT_MS);
 
         proc.on("close", (code) => {
           clearTimeout(timeoutId);
+          if (finished) return;
           if (stderrBuffer.trim()) emitLog(stderrBuffer);
           const output = Buffer.concat(stdout).toString("utf-8");
           const errText = Buffer.concat(stderr).toString("utf-8");
@@ -80,22 +131,16 @@ export async function POST(request) {
           if (code !== 0 && data.success !== false) {
             data = { success: false, error: errText || "Pipeline failed", logs: [] };
           }
-          controller.enqueue(encoder.encode(JSON.stringify({ t: "done", ...data }) + "\n"));
-          controller.close();
+          sendDone(data);
         });
+
         proc.on("error", (err) => {
           clearTimeout(timeoutId);
-          controller.enqueue(
-            encoder.encode(
-              JSON.stringify({
-                t: "done",
-                success: false,
-                error: err.message || "Process failed",
-                logs: [],
-              }) + "\n"
-            )
-          );
-          controller.close();
+          sendDone({
+            success: false,
+            error: err.message || "Process failed",
+            logs: [],
+          });
         });
       },
     });

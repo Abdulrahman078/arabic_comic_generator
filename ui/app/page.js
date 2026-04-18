@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PIPELINE_TIMEOUT_MS } from "../lib/timeouts.js";
 import Sidebar from "../components/Sidebar";
 import MainContent from "../components/MainContent";
 
@@ -18,7 +19,7 @@ export default function Home() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 min
+      const timeoutId = setTimeout(() => controller.abort(), PIPELINE_TIMEOUT_MS);
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,7 +94,7 @@ export default function Home() {
         } catch (_) {}
       }
     } catch (err) {
-      setError(err.name === "AbortError" ? "انتهت المهلة — جرّب مرة أخرى" : err.message || "Request failed");
+      setError(err.name === "AbortError" ? "انتهت المهلة - جرّب مرة أخرى" : err.message || "Request failed");
     } finally {
       setLoading(false);
     }

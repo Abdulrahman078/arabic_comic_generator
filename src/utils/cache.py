@@ -15,21 +15,21 @@ def _make_key(prompt: str, suffix: str = "") -> str:
     return h[:24]
 
 
-def get_cached_script(prompt: str) -> Optional[Dict[str, Any]]:
-    """Returns cached full script if available (same prompt)."""
+def get_cached_script(prompt: str, *, backend: str = "openai") -> Optional[Dict[str, Any]]:
+    """Returns cached full script if available (same prompt + backend: openai | dspy)."""
     if not ENABLE_CACHE:
         return None
-    key = _make_key(prompt, "script")
+    key = _make_key(prompt, f"script:{backend}")
     entry = _cache.get(key)
     return entry.get("script") if entry else None
 
 
-def set_cached_script(prompt: str, script: Dict[str, Any]) -> None:
-    """Stores script for reuse when same prompt is used again."""
+def set_cached_script(prompt: str, script: Dict[str, Any], *, backend: str = "openai") -> None:
+    """Stores script for reuse when the same prompt and backend are used again."""
     if not ENABLE_CACHE:
         return
     if len(_cache) >= _CACHE_MAX_ENTRIES:
         first = next(iter(_cache))
         del _cache[first]
-    key = _make_key(prompt, "script")
+    key = _make_key(prompt, f"script:{backend}")
     _cache[key] = {"script": script}

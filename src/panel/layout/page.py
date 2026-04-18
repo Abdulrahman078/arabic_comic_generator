@@ -27,6 +27,19 @@ def build_three_panel_layout(
     return Layout(page_w, page_h, margin, gutter, boxes)
 
 
+def build_one_panel_layout(
+    page_w: int = 1024,
+    page_h: int = 1536,
+    margin: int = 40,
+    gutter: int = 30,
+) -> Layout:
+    """Returns fixed 1-panel layout (single full-area rectangle)."""
+    usable_w = page_w - 2 * margin
+    usable_h = page_h - 2 * margin
+    boxes = [(margin, margin, margin + usable_w, margin + usable_h)]
+    return Layout(page_w, page_h, margin, gutter, boxes)
+
+
 def assemble_page(panels: List[Image.Image], layout: Layout) -> Image.Image:
     """Assembles individual panels into a single page layout."""
     page = Image.new("RGB", (layout.page_w, layout.page_h), "white")

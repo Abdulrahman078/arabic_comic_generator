@@ -1,4 +1,4 @@
-"""Data schemas: Layout, Bubble, and ComicScript JSON schema."""
+"""Data schemas: Layout and ComicScript JSON schema."""
 from dataclasses import dataclass
 from typing import List, Dict, Any, Tuple
 
@@ -10,14 +10,6 @@ class Layout:
     margin: int
     gutter: int
     panel_boxes: List[Tuple[int, int, int, int]]  # (x1, y1, x2, y2)
-
-
-@dataclass
-class Bubble:
-    bbox: Tuple[int, int, int, int]  # x1, y1, x2, y2
-    bubble_type: str  # speech/thought/caption
-    speaker: str
-    text_ar: str
 
 
 COMIC_SCRIPT_SCHEMA: Dict[str, Any] = {
@@ -40,11 +32,11 @@ COMIC_SCRIPT_SCHEMA: Dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
-                    "visual_description": {"type": "string"},
+                    "appearance": {"type": "string"},
                     "clothing": {"type": "string"},
                     "personality": {"type": "string"}
                 },
-                "required": ["name", "visual_description", "clothing", "personality"],
+                "required": ["name", "appearance", "clothing", "personality"],
                 "additionalProperties": False
             }
         },
@@ -67,12 +59,8 @@ COMIC_SCRIPT_SCHEMA: Dict[str, Any] = {
                             "properties": {
                                 "speaker": {"type": "string"},
                                 "text_ar": {"type": "string"},
-                                "bubble_type": {
-                                    "type": "string",
-                                    "enum": ["speech", "thought", "caption"]
-                                }
                             },
-                            "required": ["speaker", "text_ar", "bubble_type"],
+                            "required": ["speaker", "text_ar"],
                             "additionalProperties": False
                         }
                     }

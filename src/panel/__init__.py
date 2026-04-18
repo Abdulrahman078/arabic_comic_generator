@@ -1,1 +1,1 @@
-"""Panel-related modules: layout, text bubbles."""
+"""Panel-related modules: layout and page assembly."""
