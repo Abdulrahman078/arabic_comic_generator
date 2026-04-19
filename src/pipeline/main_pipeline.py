@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime
 
 # Ensure project root is on path (src/pipeline/ -> project root is 2 levels up)
 _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -20,6 +21,43 @@ from src.panel.layout.page import build_one_panel_layout, assemble_page
 
 PAGE_W = 1024
 PAGE_H = 1536
+_DATA_DIR = os.path.join(_project_root, "data")
+_TRAINING_PAIRS_FILE = os.path.join(_DATA_DIR, "dspy_training_pairs.json")
+
+
+def _save_training_pair(user_prompt: str, script: dict) -> None:
+    """Save (input, output) pair for DSPy few-shot optimization."""
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    
+    # Load existing pairs
+    pairs = []
+    if os.path.exists(_TRAINING_PAIRS_FILE):
+        try:
+            with open(_TRAINING_PAIRS_FILE, "r", encoding="utf-8") as f:
+                pairs = json.load(f)
+        except Exception:
+            pairs = []
+    
+    # Create training pair in DSPy format
+    training_pair = {
+        "user_message": f"Story prompt (Arabic):\n{user_prompt}\n\nGenerate the ComicScript JSON now.",
+        "comic_script_json": json.dumps(script, ensure_ascii=False),
+        "timestamp": datetime.now().isoformat(),
+        "prompt_hash": hash(user_prompt) % (10**8)  # Simple ID for tracking
+    }
+    
+    # Check if this prompt already exists (avoid duplicates)
+    existing_hashes = {p.get("prompt_hash") for p in pairs}
+    if training_pair["prompt_hash"] not in existing_hashes:
+        pairs.append(training_pair)
+        
+        # Save updated pairs
+        with open(_TRAINING_PAIRS_FILE, "w", encoding="utf-8") as f:
+            json.dump(pairs, f, ensure_ascii=False, indent=2)
+        
+        step(f"Training pair saved! Total pairs: {len(pairs)}")
+    else:
+        step("Training pair already exists (duplicate prompt), skipped")
 
 
 def run_pipeline(user_prompt: str, save_to_disk: bool = False) -> dict:
@@ -39,6 +77,9 @@ def run_pipeline(user_prompt: str, save_to_disk: bool = False) -> dict:
     t0 = time.perf_counter()
     script = generate_comic_script(user_prompt)
     step(f"Script generation - FINISHED in {time.perf_counter() - t0:.1f}s")
+    
+    # Save training pair for DSPy optimization
+    _save_training_pair(user_prompt, script)
     step("Building layout...")
     layout = build_one_panel_layout(page_w=PAGE_W, page_h=PAGE_H)
 

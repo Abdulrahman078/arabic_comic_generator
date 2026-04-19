@@ -11,6 +11,7 @@ import dspy
 
 from src.generation.script_prompts import COMIC_SCRIPT_SYSTEM_RULES, build_script_user_message
 from src.utils.config import DSPY_OPTIMIZED_PROGRAM_PATH, LLM_MODEL, OPENAI_API_KEY, llm_temperature
+from src.utils.logger import step
 
 
 class ComicScriptSignature(dspy.Signature):
@@ -63,10 +64,26 @@ def _get_predictor() -> Any:
     global _predictor
     if _predictor is not None:
         return _predictor
-    path = DSPY_OPTIMIZED_PROGRAM_PATH
-    if path and os.path.isfile(path):
-        _predictor = dspy.load(path)
+    
+    # Hardcoded path to optimized program
+    _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    program_path = os.path.join(_project_root, "data", "optimized_comic_program.json")
+    
+    if os.path.isfile(program_path):
+        step(f"Loading optimized DSPy program from: {program_path}")
+        try:
+            # State-only save (JSON) -> create Predict then load state from file
+            _predictor = dspy.Predict(ComicScriptSignature)
+            _predictor.load(program_path)
+            step("✓ Optimized program loaded successfully")
+        except Exception as e:
+            import traceback
+            step(f"Warning: Failed to load optimized program: {e}")
+            step(f"Full traceback:\n{traceback.format_exc()}")
+            step("Falling back to basic Predict...")
+            _predictor = dspy.Predict(ComicScriptSignature)
     else:
+        step("No optimized program found, using basic Predict...")
         _predictor = dspy.Predict(ComicScriptSignature)
     return _predictor
 
